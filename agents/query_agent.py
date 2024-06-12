@@ -25,7 +25,7 @@ from langchain_openai import OpenAI, OpenAIEmbeddings
 from langchain_openai import ChatOpenAI
 from langchain_core.vectorstores import VectorStoreRetriever
 
-from database import (
+from .database import (
     create_tables, add_session,
     update_user_user_stats, 
     update_topic_summary,

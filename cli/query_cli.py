@@ -1,9 +1,7 @@
 import uuid
 import pandas as pd
-import concept_prompt
-import quiz_prompt
 
-from database  import (
+from agents.database  import (
     get_topic_quiz,
     get_topic_summary,
     get_db_connection,
@@ -11,14 +9,14 @@ from database  import (
     fetch_topics_by_lecture
 )
 
-from query_agent import (
+from agents.query_agent import (
     QueryAgent, 
     parse_return, 
     generate_quiz_and_cache, 
     generate_conceptual_clarity)
     
-import quiz_prompt
-import concept_prompt
+import agents.quiz_prompt
+import agents.concept_prompt
 
 
 def display_lectures(lectures):

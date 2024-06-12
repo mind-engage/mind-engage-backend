@@ -3,8 +3,8 @@ import uuid
 import sqlite3
 import json
 
-from course_agent import create_embedding, generate_topic_titles, create_lecture
-from database import get_lecture_id, delete_topics_by_lecture, delete_lecture_by_id
+from agents.course_agent import create_embedding, generate_topic_titles, create_lecture
+from agents.database import get_lecture_id, delete_topics_by_lecture, delete_lecture_by_id
 
 app = Flask(__name__)
 

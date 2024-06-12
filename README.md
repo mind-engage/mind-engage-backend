@@ -1,4 +1,3 @@
-Here's a suggested README.md file for the `mind-engage-backend` repository. This file outlines the setup, usage, and contribution guidelines for the backend part of the MindEngage project, built using Flask.
 
 
 # MindEngage Backend
@@ -14,10 +13,20 @@ MindEngage Backend serves as the server-side application for the MindEngage educ
 
 ## Architecture Overview
 ![Archotecture](./docs/SocraticLearningAgentOverview.png)
+
+## Directory Structure
+
+- **/agents**: Contains Python modules implementing the Generative AI Agents. query_agent for user interaction, course_agent for teacher interaction.
+- **/cli**: Command-line interface utilities to interact with the services.
+- **/docs**: Documentation files and images for the project.
+- **/servers**: Server-side scripts to handle API requests.
+- **/tests**: Unit tests for the project modules.
+- **/topic_embeddings**: Sample topic embedding models.
+- **/quiz.db**: A SQLite database file containing cached sample quiz data.
 ## Getting Started
 
 ### Prerequisites
-- Python 3.8 or newer
+- Python 3.10 or newer
 - Flask
 - Virtual environment (Conda recommended)
 
@@ -38,6 +47,7 @@ conda create --name myenv python=3.10
 4. Activate the Conda environment
 ```
 conda activate myenv
+conda install pip
 ```
 
 5. Install required packages
@@ -46,6 +56,12 @@ pip install -r requirements.txt
 ```
 
 ## Usage
+
+Export API Keys
+```
+export NVIDIA_API_KEY=<API KEY>
+export LANGCHAIN_API_KEY=<API KEY>
+```
 To start the Query Agent server:
 ```bash
 python agents/query_server.py

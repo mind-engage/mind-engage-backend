@@ -1,18 +1,18 @@
 from flask import Flask, request, jsonify
 import uuid
-from database import (
+
+from agents.query_agent import QueryAgent, generate_quiz_and_cache, generate_conceptual_clarity
+from agents.database import (
     get_topic_quiz, 
     get_topic_summary, 
     fetch_lectures_by_course, 
     fetch_topics_by_lecture, 
     add_session, 
-    session_exists, 
+    session_exists,
     get_topic_lecture_id)
 
-from query_agent import QueryAgent, generate_quiz_and_cache, generate_conceptual_clarity
-
-import concept_prompt
-import quiz_prompt
+import agents.concept_prompt
+import agents.quiz_prompt
 
 #query_agent = QueryAgent(quiz_prompt.PREFIX, quiz_prompt.FORMAT_INSTRUCTIONS, quiz_prompt.SUFFIX)
 #query_agent.setup_workflow()

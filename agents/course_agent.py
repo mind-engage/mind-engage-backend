@@ -6,7 +6,7 @@ from langchain_nvidia_ai_endpoints import ChatNVIDIA
 from langchain_openai import OpenAI, OpenAIEmbeddings
 from langchain_openai import ChatOpenAI
 import os
-from database import (
+from agents.database import (
     insert_course,
     insert_lecture,
     insert_topic,
