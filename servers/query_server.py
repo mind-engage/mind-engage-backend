@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify
 import uuid
+from flask_cors import CORS
 
 from agents.query_agent import QueryAgent, generate_quiz_and_cache, generate_conceptual_clarity
 from agents.database import (
@@ -15,6 +16,7 @@ import agents.concept_prompt as concept_prompt
 import agents.quiz_prompt as quiz_prompt
 
 app = Flask(__name__)
+CORS(app)
 
 
 @app.route('/register', methods=['POST'])
