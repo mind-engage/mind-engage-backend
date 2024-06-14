@@ -11,11 +11,8 @@ from agents.database import (
     session_exists,
     get_topic_lecture_id)
 
-import agents.concept_prompt
-import agents.quiz_prompt
-
-#query_agent = QueryAgent(quiz_prompt.PREFIX, quiz_prompt.FORMAT_INSTRUCTIONS, quiz_prompt.SUFFIX)
-#query_agent.setup_workflow()
+import agents.concept_prompt as concept_prompt 
+import agents.quiz_prompt as quiz_prompt
 
 app = Flask(__name__)
 
