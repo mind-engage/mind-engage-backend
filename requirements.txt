@@ -2,6 +2,7 @@ flask
 CORS
 flask_cors
 langchain
+langgraph
 httpx
 langchain_nvidia_ai_endpoints
 langchain_community
