@@ -39,16 +39,7 @@ git clone https://github.com/mind-engage/mind-engage-backend.git
 ```bash
 cd mind-engage-backend
 ```
-3. Create a virtual environment:
-
-```
-conda create --name myenv python=3.10
-```
-4. Activate the Conda environment
-```
-conda activate myenv
-conda install pip
-```
+3. Install python3.10 or above and pip
 
 5. Install required packages
 ```
@@ -64,16 +55,38 @@ export LANGCHAIN_API_KEY=<API KEY>
 ```
 To start the Query Agent server:
 ```bash
-python agents/query_server.py
+python -m agents.query_server
 ```
 This will start the Flask server on `http://localhost:8080`. The API can now respond to requests from the mobile front-end.
 
 To start the Course Agent server:
 ```bash
-python agents/course_server.py
+python -m agents.course_server
 ```
 This will start the Flask server on `http://localhost:5000`. The API can now respond to requests from the mobile front-end.
 
+## Using Docker
+
+### Build the docker image
+```
+docker build -t mind-engage-api .
+```
+
+### Using Docker for quirey_agent
+
+Run the docker image for local testing.
+Map the quiz.db for persisting the new session data.
+```
+docker run -e NVIDIA_API_KEY=<API_KEY> -v $PWD/quiz.db:/app/quiz.db -p 8080:8080 -it mind-engage-api
+```
+
+### Using Docker for course_agent
+
+Run the docker image for local testing.
+Map the quiz.db, topic_embeddings for persisting the new session data.
+```
+docker run -e NVIDIA_API_KEY=<API_KEY> -v $PWD/quiz.db:/app/quiz.db -v $PWD/topic_embeddings:/app/topic_embeddings-p 8080:8080 -it mind-engage-api
+```
 
 ## Contributing
 We welcome contributions from everyone. To contribute:
