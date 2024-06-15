@@ -83,9 +83,9 @@ docker run -e NVIDIA_API_KEY=<API_KEY> -v $PWD/quiz.db:/app/quiz.db -p 8080:8080
 ### Using Docker for course_agent
 
 Run the docker image for local testing.
-Map the quiz.db, topic_embeddings for persisting the new session data.
+Map the quiz.db, topic_embeddings for persisting the new session data. Default command of the container is overrided with course_agent
 ```
-docker run -e NVIDIA_API_KEY=<API_KEY> -v $PWD/quiz.db:/app/quiz.db -v $PWD/topic_embeddings:/app/topic_embeddings-p 8080:8080 -it mind-engage-api
+docker run -e NVIDIA_API_KEY=<API_KEY> -v $PWD/quiz.db:/app/quiz.db -v $PWD/topic_embeddings:/app/topic_embeddings-p 8080:8080 -it mind-engage-api python -m servers.course_server
 ```
 
 ## Contributing
