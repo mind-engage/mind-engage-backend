@@ -128,9 +128,9 @@ class QueryAgent():
         """
 
         # Initialize language model and embeddings.        
-        #self.llm = ChatNVIDIA(model="mistralai/mixtral-8x22b-instruct-v0.1")
+        self.llm = ChatNVIDIA(model="mistralai/mixtral-8x22b-instruct-v0.1")
         #self.embedder = NVIDIAEmbeddings(model="ai-embed-qa-4")
-        self.llm = ChatOpenAI(temperature=0.2, model="gpt-3.5-turbo-0125")
+        # self.llm = ChatOpenAI(temperature=0.2, model="gpt-3.5-turbo-0125")
         self.embedder = OpenAIEmbeddings()
 
         # Load and set up the FAISS database for retrieval.

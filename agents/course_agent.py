@@ -16,13 +16,12 @@ from agents.database import (
 TOPIC_TITLE_PROMPT = "Give a shot topic title for the following. It should not exceed 8 words. Only one title in the response:"
 TOPIC_SIZE=3000
 
-"""
-embedder = NVIDIAEmbeddings(model="ai-embed-qa-4")
+# embedder = NVIDIAEmbeddings(model="ai-embed-qa-4")
 llm = ChatNVIDIA(model="mistralai/mixtral-8x22b-instruct-v0.1")
-"""
+
 
 embedder = OpenAIEmbeddings()
-llm = ChatOpenAI(temperature=0, model="gpt-3.5-turbo-0125")
+# llm = ChatOpenAI(temperature=0, model="gpt-3.5-turbo-0125")
 
 def create_embedding(topic_source_file: str, lecture_id):
     """
