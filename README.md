@@ -55,13 +55,13 @@ export LANGCHAIN_API_KEY=<API KEY>
 ```
 To start the Query Agent server:
 ```bash
-python -m agents.query_server
+python -m servers.query_server
 ```
 This will start the Flask server on `http://localhost:8080`. The API can now respond to requests from the mobile front-end.
 
 To start the Course Agent server:
 ```bash
-python -m agents.course_server
+python -m servers.course_server
 ```
 This will start the Flask server on `http://localhost:5000`. The API can now respond to requests from the mobile front-end.
 
