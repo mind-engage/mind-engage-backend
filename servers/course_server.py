@@ -13,12 +13,13 @@ from .database import init_db, insert_request, update_request_state, get_request
 from agents.course_agent import create_embedding, generate_topic_titles, create_lecture
 from agents.database import get_lecture_id, delete_topics_by_lecture, delete_lecture_by_id
 
-
 app = Flask(__name__)
 
-# Configuration for the upload folder
-UPLOAD_FOLDER = 'path_to_upload_folder'  # Set the path to the folder where files will be saved
+# Configuration for the upload and transcripts folders
+UPLOAD_FOLDER = 'uploads'  # Set the path to the folder where files will be saved
+TRANSCRIPTS_FOLDER = 'transcripts'  # Set the path to the folder where transcriptions will be saved
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['TRANSCRIPTS_FOLDER'] = TRANSCRIPTS_FOLDER
 
 # Define the allowed file extensions for uploads
 ALLOWED_EXTENSIONS = {'mp3', 'wav', 'ogg', 'mp4', 'txt'}
@@ -28,9 +29,6 @@ TRANSCRIPTION_SERVICE_URL = os.getenv('TRANSCRIPTION_SERVICE_URL', 'http://127.0
 
 # Initialize the database connection
 conn = init_db()
-
-
-app = Flask(__name__)
 
 @app.route('/titles/create', methods=['POST'])
 def create_titles():
@@ -57,17 +55,17 @@ def create_lecture_endpoint():
     data = request.json
     course_id = data.get('course_id')
     lecture_name = data.get('lecture_name')
-    lecture_source = data.get('lecture_source')
+    lecture_text = data.get('lecture_text')
     lecture_license = data.get('lecture_license')
 
-    if not all([course_id, lecture_name, lecture_source, lecture_license]):
+    if not all([course_id, lecture_name, lecture_text, lecture_license]):
         return jsonify({'error': 'All fields are required'}), 400
 
     lecture_id = create_lecture(course_id, lecture_name, lecture_license)
     if not lecture_id:
         return jsonify({'error': 'Failed to create lecture'}), 500
 
-    result = create_embedding(lecture_source, lecture_id)
+    result = create_embedding(lecture_text, lecture_id)
     if not result:
         return jsonify({'error': 'Failed to create embedding'}), 500
 
@@ -103,7 +101,7 @@ def transcribe(file_path):
     if response.status_code == 200:
         transcription_result = response.json()
         # Assuming the response contains the transcription text under the key 'transcription'
-        return transcription_result.get('transcription', 'transcription_failed')
+        return transcription_result.get("text", 'transcription_failed')
     else:
         return None
 
@@ -111,26 +109,19 @@ def process_request(request_uuid, file_path, title, description, license):
     update_request_state(conn, request_uuid, LectureState.INIT)
 
     if is_text_file(file_path):
-        lecture_source = file_path
+        lecture_text = file_path
     else:
-        lecture_source = transcribe(file_path)
-        if lecture_source is None or lecture_source == 'transcription_failed':
+        lecture_text = transcribe(file_path)
+        if lecture_text is None or lecture_text == 'transcription_failed':
             update_request_state(conn, request_uuid, LectureState.TRANSCRIPTION_FAILED)
             return
 
-    update_request_state(conn, request_uuid, LectureState.CREATE_EMBEDDING)
-    result = create_embedding(lecture_source)
-    if not result:
-        update_request_state(conn, request_uuid, LectureState.CREATE_EMBEDDING_FAILED)
-        return
-
-    update_request_state(conn, request_uuid, LectureState.GENERATE_TOPIC_TITLES)
-    result = generate_topic_titles()
-    if not result:
-        update_request_state(conn, request_uuid, LectureState.GENERATE_TOPIC_TITLES_FAILED)
-        return
-
-    update_request_state(conn, request_uuid, LectureState.SUCCESS)
+        # Save the transcribed text to a file
+        transcript_filename = f"{uuid.uuid4()}.txt"
+        transcript_file_path = os.path.join(app.config['TRANSCRIPTS_FOLDER'], transcript_filename)
+        with open(transcript_file_path, 'w') as transcript_file:
+            transcript_file.write(lecture_text)
+        lecture_text = transcript_file_path
 
     # Now create the lecture after success state
     course_id = 1  # Placeholder for course_id, which should be retrieved or passed in the request
@@ -138,6 +129,20 @@ def process_request(request_uuid, file_path, title, description, license):
     if not lecture_id:
         update_request_state(conn, request_uuid, LectureState.FAILED_TO_CREATE_LECTURE)
         return
+
+    update_request_state(conn, request_uuid, LectureState.CREATE_EMBEDDING)
+    result = create_embedding(lecture_text, lecture_id)
+    if not result:
+        update_request_state(conn, request_uuid, LectureState.CREATE_EMBEDDING_FAILED)
+        return
+
+    update_request_state(conn, request_uuid, LectureState.GENERATE_TOPIC_TITLES)
+    result = generate_topic_titles(lecture_id)
+    if not result:
+        update_request_state(conn, request_uuid, LectureState.GENERATE_TOPIC_TITLES_FAILED)
+        return
+
+    update_request_state(conn, request_uuid, LectureState.SUCCESS)
 
 @app.route('/lecture/upload_create', methods=['POST'])
 def upload_create_lecture_endpoint():
@@ -152,7 +157,9 @@ def upload_create_lecture_endpoint():
         return jsonify({'error': 'No selected file'}), 400
 
     if file and allowed_file(file.filename):
-        filename = secure_filename(file.filename)
+        # Generate UUID for the request and use it to create a unique filename
+        request_uuid = str(uuid.uuid4())
+        filename = secure_filename(f"{request_uuid}_{file.filename}")
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(file_path)
 
@@ -165,8 +172,6 @@ def upload_create_lecture_endpoint():
         if not all([title, description, license]):
             return jsonify({'error': 'All fields are required'}), 400
 
-        # Generate UUID for the request
-        request_uuid = str(uuid.uuid4())
         insert_request(conn, request_uuid)
 
         # Spawn a thread to process the request
@@ -203,6 +208,6 @@ def status_lecture_endpoint(request_uuid):
         return jsonify({'error': 'Request not found'}), 404
 
 if __name__ == '__main__':
-    app.config['UPLOAD_FOLDER'] = 'topic_embeddings'  # Configure upload folder
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+    os.makedirs(app.config['TRANSCRIPTS_FOLDER'], exist_ok=True)
     app.run(debug=True)
