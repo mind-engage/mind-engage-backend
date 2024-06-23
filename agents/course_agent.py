@@ -24,7 +24,7 @@ TOPIC_SIZE=3000
 embedder = OpenAIEmbeddings()
 llm = ChatOpenAI(temperature=0, model="gpt-3.5-turbo-0125")
 
-def create_embedding(topic_source_file: str, lecture_id):
+def create_embedding(topic_source_file: str, lecture_id: str):
     """
     Creates a text embedding for a specified topic document and saves the embedding.
 
@@ -60,7 +60,7 @@ def create_embedding(topic_source_file: str, lecture_id):
         # you only need to do this once, in the future, when re-run this notebook, skip to below and load the vector store from disk
         store = FAISS.from_documents(docs, embedder )
         rag_db_folder = os.environ.get("RAG_DB_FOLDER", "./topic_embeddings/")
-        store.save_local(rag_db_folder + str(lecture_id))
+        store.save_local(rag_db_folder + lecture_id)
         return True
     except Exception as e:
         raise Exception(e)
@@ -87,7 +87,7 @@ def generate_topic_titles(lecture_id):
     """    
     try:
       rag_db_folder = os.environ.get("RAG_DB_FOLDER", "./topic_embeddings/")
-      faissDB = FAISS.load_local(rag_db_folder + str(lecture_id), embedder, allow_dangerous_deserialization=True)
+      faissDB = FAISS.load_local(rag_db_folder + lecture_id, embedder, allow_dangerous_deserialization=True)
       retriever = faissDB.as_retriever()
       titles = []
       for i, doc_id in  faissDB.index_to_docstore_id.items():
@@ -102,6 +102,3 @@ def generate_topic_titles(lecture_id):
       return False
 
 
-def create_lecture(course_id,  lecture_name, lecture_license):     
-  lecture_id = insert_lecture(course_id,  lecture_name, lecture_license)
-  return lecture_id

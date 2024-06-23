@@ -31,31 +31,9 @@ curl -X POST http://localhost:8080/submit_answer -H "Content-Type: application/j
 
 # Curl commands for  Course Agent API
 
-Sure, here are the cURL commands in single-line format for each of the API endpoints you provided:
-
-## Creating a Lecture
-```bash
-curl -X POST http://localhost:5000/lecture/create -H "Content-Type: application/json" -d '{"course_id": "101", "lecture_name": "Introduction to AI", "lecture_source": "source_file.txt", "lecture_license": "CC BY-SA"}'
-```
-
-## Deleting a Lecture
-```bash
-curl -X DELETE http://localhost:5000/lecture/delete -H "Content-Type: application/json" -d '{"lecture_id": "1"}'
-```
-
-## Creating Titles
-```bash
-curl -X POST http://localhost:5000/titles/create -H "Content-Type: application/json" -d '{"lecture_id": "1"}'
-```
-
-## Deleting Titles
-```bash
-curl -X DELETE http://localhost:5000/titles/delete -H "Content-Type: application/json" -d '{"lecture_id": "1"}'
-```
-
 ## Upload a file and create a lecture:
 ```
-curl -X POST http://localhost:5000/lecture/upload_create \
+curl -X POST http://localhost:5000/lecture/create \
   -H "Content-Type: multipart/form-data" \
   -F "file=@/path/to/your/file.txt" \
   -F "title=Sample Lecture Title" \
@@ -66,5 +44,21 @@ curl -X POST http://localhost:5000/lecture/upload_create \
 
 ## Check the status of the lecture creation process:
 ```
-curl -X GET http://localhost:5000/lecture/status/123e4567-e89b-12d3-a456-426614174000
+curl -X GET http://localhost:5000/lecture/status/<lecture_id>
 ```
+
+## Deleting a Lecture
+```bash
+curl -X DELETE http://localhost:5000/lecture/delete -H "Content-Type: application/json" -d '{"lecture_id": <lecture_id>}'
+```
+
+## Creating Titles
+```bash
+curl -X POST http://localhost:5000/titles/create -H "Content-Type: application/json" -d '{"lecture_id": <lecture_id>}'
+```
+
+## Deleting Titles
+```bash
+curl -X DELETE http://localhost:5000/titles/delete -H "Content-Type: application/json" -d '{"lecture_id": <lecture_id>}'
+```
+

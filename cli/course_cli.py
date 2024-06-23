@@ -58,10 +58,11 @@ elif args.command == 'lecture':
         lecture_source = input()
         print("Lecture License: ")
         lecture_license = input()
-        lecture_id = create_lecture(course_id,  lecture_name, lecture_license)
+        lecture_id = str(uuid.uuid4())
+        result = create_lecture(course_id, lecture_id, lecture_name, lecture_license)
 
-        if not lecture_id:
-            print("Failed to create embedding for ", lecture_source )
+        if not result:
+            print("Failed to create lecture for ", lecture_source )
             exit(1)
         result = create_embedding(lecture_source, lecture_id)
         if not result:

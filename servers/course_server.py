@@ -10,22 +10,21 @@ import magic  # Import python-magic library
 from .states import LectureState
 from .database import init_db, insert_request, update_request_state, get_request_state
 
-from agents.course_agent import create_embedding, generate_topic_titles, create_lecture
-from agents.database import get_lecture_id, delete_topics_by_lecture, delete_lecture_by_id
+from agents.course_agent import create_embedding, generate_topic_titles
+from agents.database import get_lecture_id, delete_topics_by_lecture, delete_lecture_by_id, insert_lecture, update_lecture
 
 app = Flask(__name__)
 
 # Configuration for the upload and transcripts folders
-UPLOAD_FOLDER = 'uploads'  # Set the path to the folder where files will be saved
-TRANSCRIPTS_FOLDER = 'transcripts'  # Set the path to the folder where transcriptions will be saved
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['TRANSCRIPTS_FOLDER'] = TRANSCRIPTS_FOLDER
-
-# Define the allowed file extensions for uploads
-ALLOWED_EXTENSIONS = {'mp3', 'wav', 'ogg', 'mp4', 'txt'}
-
+app.config['UPLOAD_FOLDER'] = os.environ.get('UPLOAD_FOLDER', 'data/uploads')
+app.config['TRANSCRIPTS_FOLDER'] = os.environ.get('TRANSCRIPTS_FOLDER', 'data/transcripts')
 # Get the transcription service URL from environment variable
 TRANSCRIPTION_SERVICE_URL = os.getenv('TRANSCRIPTION_SERVICE_URL', 'http://127.0.0.1:8080/inference')
+
+# Define the allowed file extensions for uploads
+# ALLOWED_EXTENSIONS = {'mp3', 'wav', 'ogg', 'mp4', 'txt'}
+ALLOWED_EXTENSIONS = {'mp3', 'txt'}
+
 
 # Initialize the database connection
 conn = init_db()
@@ -49,32 +48,6 @@ def delete_titles():
     if not result:
         return jsonify({'error': 'Failed to delete topic titles'}), 500
     return jsonify({'message': 'Topics deleted successfully'}), 200
-
-@app.route('/lecture/create', methods=['POST'])
-def create_lecture_endpoint():
-    data = request.json
-    course_id = data.get('course_id')
-    lecture_name = data.get('lecture_name')
-    lecture_text = data.get('lecture_text')
-    lecture_license = data.get('lecture_license')
-
-    if not all([course_id, lecture_name, lecture_text, lecture_license]):
-        return jsonify({'error': 'All fields are required'}), 400
-
-    lecture_id = create_lecture(course_id, lecture_name, lecture_license)
-    if not lecture_id:
-        return jsonify({'error': 'Failed to create lecture'}), 500
-
-    result = create_embedding(lecture_text, lecture_id)
-    if not result:
-        return jsonify({'error': 'Failed to create embedding'}), 500
-
-    result = generate_topic_titles(lecture_id)
-    if not result:
-        return jsonify({'error': 'Failed to create topic titles'}), 500
-    
-    return jsonify({'message': 'Lecture created successfully', 'lecture_id': lecture_id}), 200
-
 
 # Function to check if a file extension is allowed
 def allowed_file(filename):
@@ -108,6 +81,8 @@ def transcribe(file_path):
 def process_request(request_uuid, file_path, title, description, license):
     update_request_state(conn, request_uuid, LectureState.INIT)
 
+    # Use request_id as lecture_id
+    lecture_id = request_uuid
     if is_text_file(file_path):
         lecture_text = file_path
     else:
@@ -117,18 +92,11 @@ def process_request(request_uuid, file_path, title, description, license):
             return
 
         # Save the transcribed text to a file
-        transcript_filename = f"{uuid.uuid4()}.txt"
+        transcript_filename = f"{request_uuid}.txt"
         transcript_file_path = os.path.join(app.config['TRANSCRIPTS_FOLDER'], transcript_filename)
         with open(transcript_file_path, 'w') as transcript_file:
             transcript_file.write(lecture_text)
         lecture_text = transcript_file_path
-
-    # Now create the lecture after success state
-    course_id = 1  # Placeholder for course_id, which should be retrieved or passed in the request
-    lecture_id = create_lecture(course_id, title, license)
-    if not lecture_id:
-        update_request_state(conn, request_uuid, LectureState.FAILED_TO_CREATE_LECTURE)
-        return
 
     update_request_state(conn, request_uuid, LectureState.CREATE_EMBEDDING)
     result = create_embedding(lecture_text, lecture_id)
@@ -142,10 +110,17 @@ def process_request(request_uuid, file_path, title, description, license):
         update_request_state(conn, request_uuid, LectureState.GENERATE_TOPIC_TITLES_FAILED)
         return
 
+    # Now create the lecture after success state
+    course_id = 1  # Placeholder for course_id, which should be retrieved or passed in the request
+    result = insert_lecture(lecture_id, course_id, title, license)
+    if not result:
+        update_request_state(conn, request_uuid, LectureState.FAILED_TO_CREATE_LECTURE)
+        return
+
     update_request_state(conn, request_uuid, LectureState.SUCCESS)
 
-@app.route('/lecture/upload_create', methods=['POST'])
-def upload_create_lecture_endpoint():
+@app.route('/lecture/create', methods=['POST'])
+def create_lecture_endpoint():
     # Check if a file was uploaded
     if 'file' not in request.files:
         return jsonify({'error': 'No file part'}), 400

@@ -57,7 +57,7 @@ if __name__ == '__main__':
 
     quiz_dict = get_topic_quiz(topic_id, level=0)
     if not quiz_dict:
-        rag_db = str(lecture_id)
+        rag_db = lecture_id
         query_agent = QueryAgent(rag_db, quiz_prompt.PREFIX, quiz_prompt.FORMAT_INSTRUCTIONS, quiz_prompt.SUFFIX)
         query_agent.setup_workflow()
         generate_quiz_and_cache(query_agent, topic_id)
@@ -79,7 +79,7 @@ if __name__ == '__main__':
             else:
                 print("Answer is Wrong! Look at the following for clarity.")
                 # Get concept
-                rag_db = str(lecture_id)
+                rag_db = lecture_id
                 prompt_prefix = concept_prompt.get_formatted(concept_prompt.PREFIX, topic_summary, quiz_dict, answer)
                 concept_agent = QueryAgent(rag_db, prompt_prefix, concept_prompt.FORMAT_INSTRUCTIONS, concept_prompt.SUFFIX)
                 concept_agent.setup_workflow()

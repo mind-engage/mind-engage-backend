@@ -27,7 +27,7 @@ def create_tables():
 
     conn.execute('''
     CREATE TABLE IF NOT EXISTS lectures (
-        lecture_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        lecture_id TEXT PRIMARY KEY,
         course_id INTEGER,
         lecture_title TEXT NOT NULL,
         license TEXT,
@@ -38,7 +38,7 @@ def create_tables():
     conn.execute('''
     CREATE TABLE IF NOT EXISTS topics (
         topic_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        lecture_id INTEGER,
+        lecture_id TEXT,
         topic_title TEXT NOT NULL,
         topic_summary TEXT,
         FOREIGN KEY (lecture_id) REFERENCES lectures(lecture_id)
@@ -292,18 +292,36 @@ def insert_course(course_name, description, author):
     conn.close()
     return course_id
 
-def insert_lecture(course_id, lecture_title, license):
+def insert_lecture(lecture_id, course_id, lecture_title, license):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+        INSERT INTO lectures (lecture_id, course_id, lecture_title, license) 
+        VALUES (?, ?, ?, ?);
+        ''', (lecture_id, course_id, lecture_title, license))
+        conn.commit()
+        lecture_id = cursor.lastrowid  # Retrieve the ID of the newly inserted lecture
+        return True
+    except sqlite3.Error as e:
+        print(f"An error occurred: {e}")
+        return False
+    finally:
+        # Close the database connection
+        cursor.close()
+        conn.close()
+
+def update_lecture(lecture_id, course_id, lecture_title, license):
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
-    INSERT INTO lectures (course_id, lecture_title, license) 
-    VALUES (?, ?, ?);
-    ''', (course_id, lecture_title, license))
+    UPDATE lectures 
+    SET course_id = ?, lecture_title = ?, license = ?
+    WHERE lecture_id = ?;
+    ''', (course_id, lecture_title, license, lecture_id))
     conn.commit()
-    lecture_id = cursor.lastrowid  # Retrieve the ID of the newly inserted lecture
     cursor.close()
     conn.close()
-    return lecture_id
 
 def insert_topic(lecture_id, topic_title):
     conn = get_db_connection()
