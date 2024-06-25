@@ -34,6 +34,8 @@ from .database import (
     insert_topic_quiz,
     get_topic_quiz)
 
+# Number of attempts run the graph that satisfies structured output
+MAX_ATTEMPTS = 3
 
 class QueryAgentParser(AgentOutputParser):
     """Output parser for the conversational agent."""
@@ -128,9 +130,10 @@ class QueryAgent():
         """
 
         # Initialize language model and embeddings.        
-        self.llm = ChatNVIDIA(model="mistralai/mixtral-8x22b-instruct-v0.1")
+        # self.llm = ChatNVIDIA(model="mistralai/mixtral-8x22b-instruct-v0.1")
         #self.embedder = NVIDIAEmbeddings(model="ai-embed-qa-4")
-        # self.llm = ChatOpenAI(temperature=0.2, model="gpt-3.5-turbo-0125")
+        
+        self.llm = ChatOpenAI(temperature=0.2, model="gpt-3.5-turbo-0125")
         self.embedder = OpenAIEmbeddings()
 
         # Load and set up the FAISS database for retrieval.
@@ -323,7 +326,7 @@ def parse_quiz(llm_response):
     """
     # Use regex to find the summary section and strip unnecessary whitespace
     summary_match = re.search(r'Summary: (.*?)\n\nQuiz:', llm_response, re.DOTALL)
-    summary = summary_match.group(1).strip() if summary_match else ""
+    summary = summary_match.group(1).strip() if summary_match else None
 
     # Initialize lists for storing questions and choices, and a dictionary for answers.
     questions = []
@@ -358,6 +361,11 @@ def parse_quiz(llm_response):
         'answers': answers
     }
 
+def valid_quiz(quiz):
+    if len(quiz["answers"]) > 0 and len(quiz["choices"]) > 0 and len(quiz["questions"]) > 0:
+        return True
+    return False
+
 def generate_quiz_and_cache(agent, topic_id):
     """
     Generates three quiz questions at basic, intermediate, and advanced levels for the given topic,
@@ -381,23 +389,34 @@ def generate_quiz_and_cache(agent, topic_id):
 
     # Prepare the input data for the agent's quiz application.
     input_data = {"input": topic}
+    for attempt in range(MAX_ATTEMPTS):
+        print(f"Attempt {attempt}")
+        # Invoke the quiz application to generate quiz questions.
+        outputs = agent.quizz_app.invoke(input_data)
 
-    # Invoke the quiz application to generate quiz questions.
-    outputs = agent.quizz_app.invoke(input_data)
+        # Parse the output from the quiz application to structured data.
+        response = parse_return(outputs)
+        quiz = parse_quiz(response)
+        if valid_quiz(quiz):
+            break;
 
-    # Parse the output from the quiz application to structured data.
-    response = parse_return(outputs)
-    quiz = parse_quiz(response)
-
+    if not valid_quiz(quiz):
+        return False
     # Insert each question into the database along with its level, choices, and correct answer.
     # Also, update the topic summary for the given topic ID.
-    for id, question in enumerate(quiz["questions"]):
-        level=id
-        choices = quiz["choices"][id]
-        answer = quiz["answers"][str(id+1)]
-        summary = quiz["summary"]
-        insert_topic_quiz(topic_id, level, question, choices, answer)
-        update_topic_summary(topic_id, summary)
+    try:
+        for id, question in enumerate(quiz["questions"]):
+            level=id
+            choices = quiz["choices"][id]
+            answer = quiz["answers"][str(id+1)]
+            summary = quiz["summary"]
+            insert_topic_quiz(topic_id, level, question, choices, answer)
+            update_topic_summary(topic_id, summary)
+        return True
+    except Exception as e:
+        print(e)
+        # raise Exception(e)
+        return False
 
 
 def generate_conceptual_clarity(agent, topic_id):

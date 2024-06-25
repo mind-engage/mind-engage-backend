@@ -1,43 +1,59 @@
-# Rest server
-
 from flask import Flask, request, jsonify
 import uuid
-import sqlite3
 import json
-import pandas as pd
 import time
+import os
 
-# Initialize and configure the SQLite database
-def get_db_connection():
-    conn = sqlite3.connect("quiz.db")
-    conn.row_factory = sqlite3.Row
-    return conn
+# Environment variable to determine the database type
+DATABASE_URL = os.getenv('DATABASE_URL')
+
+# Determine if we're using PostgreSQL or SQLite
+if DATABASE_URL and 'postgresql' in DATABASE_URL:
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+
+    def get_db_connection():
+        conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+        return conn
+
+    PLACEHOLDER = '%s'
+
+else:
+    import sqlite3
+
+    def get_db_connection():
+        conn = sqlite3.connect("quiz.db")
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    PLACEHOLDER = '?'
 
 def create_tables():
     conn = get_db_connection()
-    
-    conn.execute('''
+    cursor = conn.cursor()
+
+    cursor.execute(f'''
     CREATE TABLE IF NOT EXISTS courses (
-        course_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        course_id TEXT PRIMARY KEY,
         course_name TEXT NOT NULL,
         description TEXT,
         author TEXT NOT NULL
     );
     ''')
 
-    conn.execute('''
+    cursor.execute(f'''
     CREATE TABLE IF NOT EXISTS lectures (
         lecture_id TEXT PRIMARY KEY,
-        course_id INTEGER,
+        course_id TEXT,
         lecture_title TEXT NOT NULL,
         license TEXT,
         FOREIGN KEY (course_id) REFERENCES courses(course_id)
     );
     ''')
 
-    conn.execute('''
+    cursor.execute(f'''
     CREATE TABLE IF NOT EXISTS topics (
-        topic_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        topic_id SERIAL PRIMARY KEY,
         lecture_id TEXT,
         topic_title TEXT NOT NULL,
         topic_summary TEXT,
@@ -45,75 +61,77 @@ def create_tables():
     );
     ''')
 
-    conn.execute('''
+    cursor.execute(f'''
     CREATE TABLE IF NOT EXISTS session (
         session TEXT PRIMARY KEY,
-        start_time INTEGER
+        start_time BIGINT
     );
     ''')
 
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS user_stats (
-            session  TEXT,
-            topic_id INTEGER,
-            level    INTEGER
-            user_attempt INTEGER DEFAULT 0,
-            user_answer TEXT DEFAULT '',
-            PRIMARY KEY(session, topic_id, level)
-        );
+    cursor.execute(f'''
+    CREATE TABLE IF NOT EXISTS user_stats (
+        session TEXT,
+        topic_id INTEGER,
+        level INTEGER,
+        user_attempt INTEGER DEFAULT 0,
+        user_answer TEXT DEFAULT '',
+        PRIMARY KEY(session, topic_id, level)
+    );
     ''')
 
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS topic_quiz (
-            topic_id INTEGER KEY,
-            level INTEGER KEY,
-            question TEXT,
-            choice_a TEXT,
-            choice_b TEXT,
-            choice_c TEXT,
-            choice_d TEXT,
-            answer   TEXT,
-            PRIMARY KEY(topic_id, level)
-        );
-        '''
-    )
+    cursor.execute(f'''
+    CREATE TABLE IF NOT EXISTS topic_quiz (
+        topic_id INTEGER,
+        level INTEGER,
+        question TEXT,
+        choice_a TEXT,
+        choice_b TEXT,
+        choice_c TEXT,
+        choice_d TEXT,
+        answer TEXT,
+        PRIMARY KEY(topic_id, level)
+    );
+    ''')
 
     conn.commit()
+    cursor.close()
     conn.close()
-
 
 def add_session(session):
     conn = get_db_connection()
     start_time = int(time.time())
-    conn.execute("INSERT INTO session (session, start_time) VALUES (?, ?)", (session, start_time))    
+    cursor = conn.cursor()
+    cursor.execute(f"INSERT INTO session (session, start_time) VALUES ({PLACEHOLDER}, {PLACEHOLDER})", (session, start_time))
     conn.commit()
+    cursor.close()
     conn.close()
 
 def session_exists(session):
     conn = get_db_connection()
+    cursor = conn.cursor()
 
-    sql = 'SELECT EXISTS(SELECT 1 FROM session WHERE session = ?)'
-    cur = conn.cursor()
-    try:
-        # Execute the SQL command
-        cur.execute(sql, (session,))
-        # Fetch the result
-        exists = cur.fetchone()[0]
-        return bool(exists)
-    except sqlite3.Error as e:
-        print("An error occurred:", e)
-        return False
-    finally:
-        # Close the cursor
-        cur.close()
-        conn.close()
+    sql = f'SELECT EXISTS(SELECT 1 FROM session WHERE session = {PLACEHOLDER})'
+    cursor.execute(sql, (session,))
+    result = cursor.fetchone()
+    # Convert the result to a dictionary if it's not already
+    if isinstance(result, tuple):
+        exists = {'exists': result[0]}
+    elif isinstance(result, dict):
+        exists = result
+    else:
+        raise TypeError("Unexpected result type from database query")
+    
+    cursor.close()
+    conn.close()
+    return exists
 
 def add_user_stats(session, topic_id, level):
     conn = get_db_connection()
-    conn.execute("INSERT INTO user_stats (session, answer) VALUES (?, ?)", (session, answer))
+    cursor = conn.cursor()
+    cursor.execute(f"INSERT INTO user_stats (session, topic_id, level) VALUES ({PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER})", (session, topic_id, level))
     conn.commit()
+    cursor.close()
     conn.close()
-
 
 def update_user_user_stats(session, topic_id, level, new_answer):
     """ Updates user_answer and increments user_attempt for a given session. """
@@ -121,20 +139,20 @@ def update_user_user_stats(session, topic_id, level, new_answer):
     cursor = conn.cursor()
     
     # First, retrieve the current user_attempt value for the given session
-    cursor.execute('''
-        SELECT user_attempt FROM user_stats WHERE session = ? AND topic_id = ? AND level = ?
+    cursor.execute(f'''
+        SELECT user_attempt FROM user_stats WHERE session = {PLACEHOLDER} AND topic_id = {PLACEHOLDER} AND level = {PLACEHOLDER}
     ''', (session, topic_id, level))
     result = cursor.fetchone()
     
     if result:
-        current_attempt = result[0]  # Get the current number of attempts
+        current_attempt = result['user_attempt']  # Get the current number of attempts
         new_attempt = current_attempt + 1  # Increment the attempt count
 
         # Now, update the user_answer and user_attempt in the table
-        cursor.execute('''
-            UPDATE quiz
-            SET user_answer = ?, user_attempt = ?
-            WHERE session = ? AND topic_id = ? AND level = ?
+        cursor.execute(f'''
+            UPDATE user_stats
+            SET user_answer = {PLACEHOLDER}, user_attempt = {PLACEHOLDER}
+            WHERE session = {PLACEHOLDER} AND topic_id = {PLACEHOLDER} AND level = {PLACEHOLDER}
         ''', (new_answer, new_attempt, session, topic_id, level))        
         conn.commit()
     else:
@@ -144,180 +162,149 @@ def update_user_user_stats(session, topic_id, level, new_answer):
     conn.close()
 
 def update_topic_summary(topic_id, new_summary):
-    conn = get_db_connection()  # This function needs to be defined to handle your database connection
-    """ Update the summary of a topic in the topics table """
-    try:
-        cursor = conn.cursor()
-        cursor.execute('''
-            UPDATE topics
-            SET topic_summary = ?
-            WHERE topic_id = ?
-        ''', (new_summary, topic_id))
-        conn.commit()
-        cursor.close()
-    except Exception as e:
-        print("An error occurred while updating the topic summary:", e)
-    finally:
-        conn.close()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(f'''
+        UPDATE topics
+        SET topic_summary = {PLACEHOLDER}
+        WHERE topic_id = {PLACEHOLDER}
+    ''', (new_summary, topic_id))
+    conn.commit()
+    cursor.close()
+    conn.close()
 
 def get_topic_title(topic_id):
     conn = get_db_connection()
-    query = "SELECT topic_title FROM topics WHERE topic_id = ?;"
-    df = pd.read_sql_query(query, conn, params=(topic_id,))
+    cursor = conn.cursor()
+    cursor.execute(f"SELECT topic_title FROM topics WHERE topic_id = {PLACEHOLDER};", (topic_id,))
+    result = cursor.fetchone()
     conn.close()
 
-    if not df.empty:
-        topic = df.iloc[0]['topic_title']
-        return topic    
+    if result:
+        return result['topic_title']
     else:
         return None
 
 def get_topic_lecture_id(topic_id):
     conn = get_db_connection()
-    query = "SELECT lecture_id FROM topics WHERE topic_id = ?;"
-    df = pd.read_sql_query(query, conn, params=(topic_id,))
+    cursor = conn.cursor()
+    cursor.execute(f"SELECT lecture_id FROM topics WHERE topic_id = {PLACEHOLDER};", (topic_id,))
+    result = cursor.fetchone()
     conn.close()
 
-    if not df.empty:
-        lecture_id = df.iloc[0]['lecture_id']
-        return lecture_id    
+    if result:
+        return result['lecture_id']
     else:
         return None
 
 def get_topic_summary(topic_id):
     conn = get_db_connection()
-    query = "SELECT topic_summary FROM topics WHERE topic_id = ?;"
-    df = pd.read_sql_query(query, conn, params=(topic_id,))
+    cursor = conn.cursor()
+    cursor.execute(f"SELECT topic_summary FROM topics WHERE topic_id = {PLACEHOLDER};", (topic_id,))
+    result = cursor.fetchone()
     conn.close()
 
-    if not df.empty:
-        topic_summary = df.iloc[0]['topic_summary']
-        return topic_summary    
+    if result:
+        return result['topic_summary']
     else:
         return None
 
-def insert_topic_quiz(topic_id, level,  question, choices, answer):
+def insert_topic_quiz(topic_id, level, question, choices, answer):
     conn = get_db_connection()
-    """ Insert a new topic quiz into the topic_quiz table or update if it already exists """
-    try:
-        conn.execute('''
-            INSERT INTO topic_quiz (topic_id, level, question, choice_a, choice_b, choice_c, choice_d, answer)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(topic_id, level) DO UPDATE SET
-            question=excluded.question,
-            choice_a=excluded.choice_a,
-            choice_b=excluded.choice_b,
-            choice_c=excluded.choice_c,
-            choice_d=excluded.choice_d,
-            answer=excluded.answer
-        ''', (topic_id,
-              level,
-              question,
-              choices[0],  # assuming choices is a list of 4 items
-              choices[1],
-              choices[2],
-              choices[3],
-              answer))
-        conn.commit()
-    finally:
-        conn.close()
+    cursor = conn.cursor()
+    cursor.execute(f'''
+        INSERT INTO topic_quiz (topic_id, level, question, choice_a, choice_b, choice_c, choice_d, answer)
+        VALUES ({PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER})
+        ON CONFLICT (topic_id, level) DO UPDATE SET
+            question = EXCLUDED.question,
+            choice_a = EXCLUDED.choice_a,
+            choice_b = EXCLUDED.choice_b,
+            choice_c = EXCLUDED.choice_c,
+            choice_d = EXCLUDED.choice_d,
+            answer = EXCLUDED.answer
+    ''', (topic_id, level, question, choices[0], choices[1], choices[2], choices[3], answer))
+    conn.commit()
+    cursor.close()
+    conn.close()
 
 def get_topic_quiz(topic_id, level):
     conn = get_db_connection()
-    """ Retrieve a topic quiz from the topic_quiz table """
-    try:
-        cursor = conn.cursor()
-        cursor.execute('''
-            SELECT question, choice_a, choice_b, choice_c, choice_d, answer
-            FROM topic_quiz
-            WHERE topic_id = ? AND level = ?
-        ''', (topic_id, level))
-        
-        # Fetch the data
-        data = cursor.fetchone()
-        if data:
-            result = {
-                'question': data[0],
-                'choices': [
-                    data[1],
-                    data[2],
-                    data[3],
-                    data[4]
-                ],
-                'answer': data[5]
-            }
-            return result
-        else:
-            return None  # or you can raise an exception or return an error message if preferred
-    except Exception as e:
-        print("An error occurred while retrieving the topic quiz:", e)
+    cursor = conn.cursor()
+    cursor.execute(f'''
+        SELECT question, choice_a, choice_b, choice_c, choice_d, answer
+        FROM topic_quiz
+        WHERE topic_id = {PLACEHOLDER} AND level = {PLACEHOLDER}
+    ''', (topic_id, level))
+    
+    data = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    
+    if data:
+        result = {
+            'question': data['question'],
+            'choices': [data['choice_a'], data['choice_b'], data['choice_c'], data['choice_d']],
+            'answer': data['answer']
+        }
+        return result
+    else:
         return None
-    finally:
-        conn.close()
 
 def fetch_lectures_by_course(course_id):
     conn = get_db_connection()
-    query = "SELECT lecture_id, lecture_title, license FROM lectures WHERE course_id = ?;"
+    query = f"SELECT lecture_id, lecture_title, license FROM lectures WHERE course_id = {PLACEHOLDER};"
     cursor = conn.cursor()
     cursor.execute(query, (course_id,))
-    rows = cursor.fetchall()  # Fetch all rows as a list of tuples
+    rows = cursor.fetchall()
+    cursor.close()
     conn.close()
     return rows
-
 
 def fetch_topics_by_lecture(lecture_id):
     conn = get_db_connection()
-    query = """
-        SELECT topic_id, topic_title FROM topics WHERE lecture_id = ?;
-    """
+    query = f"SELECT topic_id, topic_title FROM topics WHERE lecture_id = {PLACEHOLDER};"
     cursor = conn.cursor()
     cursor.execute(query, (lecture_id,))
-    rows = cursor.fetchall()  # Fetch all rows as a list of tuples
+    rows = cursor.fetchall()
+    cursor.close()
     conn.close()
     return rows
 
-# Functions used by course_agent
-#
-def insert_course(course_name, description, author):
+def insert_course(course_id, course_name, description, author):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('''
-    INSERT INTO courses (course_name, description, author) 
-    VALUES (?, ?, ?);
-    ''', (course_name, description, author))
+    cursor.execute(f'''
+    INSERT INTO courses (course_id, course_name, description, author) 
+    VALUES ({PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER});
+    ''', (course_id, course_name, description, author))
     conn.commit()
-    # Retrieve the ID of the newly inserted course
-    course_id = cursor.lastrowid
     cursor.close()
     conn.close()
-    return course_id
 
 def insert_lecture(lecture_id, course_id, lecture_title, license):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute('''
+        cursor.execute(f'''
         INSERT INTO lectures (lecture_id, course_id, lecture_title, license) 
-        VALUES (?, ?, ?, ?);
+        VALUES ({PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER});
         ''', (lecture_id, course_id, lecture_title, license))
         conn.commit()
-        lecture_id = cursor.lastrowid  # Retrieve the ID of the newly inserted lecture
         return True
-    except sqlite3.Error as e:
+    except Exception as e:
         print(f"An error occurred: {e}")
         return False
     finally:
-        # Close the database connection
         cursor.close()
         conn.close()
 
 def update_lecture(lecture_id, course_id, lecture_title, license):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('''
+    cursor.execute(f'''
     UPDATE lectures 
-    SET course_id = ?, lecture_title = ?, license = ?
-    WHERE lecture_id = ?;
+    SET course_id = {PLACEHOLDER}, lecture_title = {PLACEHOLDER}, license = {PLACEHOLDER}
+    WHERE lecture_id = {PLACEHOLDER};
     ''', (course_id, lecture_title, license, lecture_id))
     conn.commit()
     cursor.close()
@@ -326,12 +313,13 @@ def update_lecture(lecture_id, course_id, lecture_title, license):
 def insert_topic(lecture_id, topic_title):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('''
+    cursor.execute(f'''
     INSERT INTO topics (lecture_id, topic_title) 
-    VALUES (?, ?);
+    VALUES ({PLACEHOLDER}, {PLACEHOLDER})
+    RETURNING topic_id;
     ''', (lecture_id, topic_title))
+    topic_id = cursor.fetchone()['topic_id']
     conn.commit()
-    topic_id = cursor.lastrowid  # Retrieve the ID of the newly inserted topic
     cursor.close()
     conn.close()
     return topic_id
@@ -339,7 +327,7 @@ def insert_topic(lecture_id, topic_title):
 def get_course_id(course_name):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT course_id FROM courses WHERE course_name = ?", (course_name,))
+    cursor.execute(f"SELECT course_id FROM courses WHERE course_name = {PLACEHOLDER}", (course_name,))
     result = cursor.fetchone()
     cursor.close()
     conn.close()
@@ -348,81 +336,46 @@ def get_course_id(course_name):
 def get_lecture_id(lecture_title):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT lecture_id FROM lectures WHERE lecture_title = ?", (lecture_title,))
+    cursor.execute(f"SELECT lecture_id FROM lectures WHERE lecture_title = {PLACEHOLDER}", (lecture_title,))
     result = cursor.fetchone()
     cursor.close()
     conn.close()
     return result['lecture_id'] if result else None
 
 def delete_lecture_by_id(lecture_id):
-    conn =  get_db_connection()
+    conn = get_db_connection()
     cursor = conn.cursor()
-    
     try:
-        # SQL command to delete a lecture by lecture_id
-        sql = 'DELETE FROM lectures WHERE lecture_id = ?'
-        
-        # Execute the SQL command
+        sql = f'DELETE FROM lectures WHERE lecture_id = {PLACEHOLDER}'
         cursor.execute(sql, (lecture_id,))
-        
-        # Commit the changes to the database
         conn.commit()
-        
-        # Check if the row was deleted
         if cursor.rowcount == 0:
             print("No lecture found with the given lecture_id.")
         else:
             print(f"Lecture with lecture_id {lecture_id} has been deleted.")
         return True
-    except sqlite3.Error as e:
-        # Print an error message if an exception occurs
+    except Exception as e:
         print(f"An error occurred: {e}")
         return False
     finally:
-        # Close the database connection
         cursor.close()
         conn.close()
 
-
 def delete_topics_by_lecture(lecture_id):
-    """
-    Deletes all topics associated with a specific lecture_id from the 'topics' table.
-
-    Args:
-        lecture_id (int): The ID of the lecture for which topics should be deleted.
-
-    Returns:
-        int: The number of rows deleted.
-
-    Raises:
-        Exception: If an error occurs during the database operation.
-    """
-    # Connect to the SQLite database
-    conn =  get_db_connection()
-    cur = conn.cursor()
-
+    conn = get_db_connection()
+    cursor = conn.cursor()
     try:
-        # SQL statement to delete rows
-        sql = 'DELETE FROM topics WHERE lecture_id = ?'
-        
-        # Execute the deletion command
-        cur.execute(sql, (lecture_id,))
-
-        # Commit the changes to the database
+        sql = f'DELETE FROM topics WHERE lecture_id = {PLACEHOLDER}'
+        cursor.execute(sql, (lecture_id,))
         conn.commit()
-
-        # Return the number of rows affected
-        rows_deleted = cur.rowcount
+        rows_deleted = cursor.rowcount
         return rows_deleted
-
     except Exception as e:
-        # Rollback any changes if an exception occurred
         conn.rollback()
         raise Exception(f"An error occurred: {e}")
-
     finally:
-        # Close the database connection
-        cur.close()
+        cursor.close()
         conn.close()
 
 create_tables()  # Ensure the table is created
+

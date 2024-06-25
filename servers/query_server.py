@@ -30,9 +30,11 @@ def lectures():
     session_id = request.args['session_id']
     if not session_exists(session_id):
         return jsonify({'error': 'Invalid session ID'}), 401
-    course_id = request.args.get('course_id', 1)  # Default course ID
+    zero_uuid = uuid.UUID('00000000-0000-0000-0000-000000000000')
+    course_id = request.args.get('course_id', str(zero_uuid))  # Default course ID
     rows = fetch_lectures_by_course(course_id)
-    lectures = [{'lecture_id': row[0], 'lecture_title': row[1], 'license': row[2]} for row in rows]
+    # lectures = [{'lecture_id': row[0], 'lecture_title': row[1], 'license': row[2]} for row in rows]
+    lectures = [dict(row) for row in rows]
     return jsonify(lectures)
 
 @app.route('/topics', methods=['GET'])
@@ -42,7 +44,8 @@ def topics():
         return jsonify({'error': 'Invalid session ID'}), 401
     lecture_id = request.args['lecture_id']
     rows = fetch_topics_by_lecture(lecture_id)
-    topics = [{'topic_id': row[0], 'topic_title': row[1]} for row in rows]
+    # topics = [{'topic_id': row[0], 'topic_title': row[1]} for row in rows]
+    topics = [dict(row) for row in rows]
     return jsonify(topics)
 
 @app.route('/quiz', methods=['GET'])
@@ -58,7 +61,9 @@ def quiz():
         rag_db = str(lecture_id)
         quiz_agent = QueryAgent(rag_db, quiz_prompt.PREFIX, quiz_prompt.FORMAT_INSTRUCTIONS, quiz_prompt.SUFFIX)
         quiz_agent.setup_workflow()
-        generate_quiz_and_cache(quiz_agent, topic_id)
+        result = generate_quiz_and_cache(quiz_agent, topic_id)
+        if not result:
+            return jsonify({'error': 'Server Error'}), 501        
         quiz = get_topic_quiz(topic_id, level)
     topic_summary = get_topic_summary(topic_id)
     response = {

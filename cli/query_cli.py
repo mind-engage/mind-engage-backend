@@ -37,7 +37,7 @@ if __name__ == '__main__':
 
     # Step-2 User => Requests available lectures, Agent => sends list of lectures
     # Course is hard coded for now
-    course_id = 1
+    course_id =  str(uuid.UUID(int=0))
 
     lectures = fetch_lectures_by_course(course_id)
     display_lectures(lectures)

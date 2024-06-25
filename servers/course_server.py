@@ -10,7 +10,7 @@ import magic  # Import python-magic library
 from .states import LectureState
 from .database import init_db, insert_request, update_request_state, get_request_state
 
-from agents.course_agent import create_embedding, generate_topic_titles
+from agents.course_agent import create_embedding, generate_topic_titles, init_demo_course
 from agents.database import get_lecture_id, delete_topics_by_lecture, delete_lecture_by_id, insert_lecture, update_lecture
 
 app = Flask(__name__)
@@ -19,7 +19,7 @@ app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = os.environ.get('UPLOAD_FOLDER', 'data/uploads')
 app.config['TRANSCRIPTS_FOLDER'] = os.environ.get('TRANSCRIPTS_FOLDER', 'data/transcripts')
 # Get the transcription service URL from environment variable
-TRANSCRIPTION_SERVICE_URL = os.getenv('TRANSCRIPTION_SERVICE_URL', 'http://127.0.0.1:8080/inference')
+TRANSCRIPTION_SERVICE_URL = os.getenv('TRANSCRIPTION_SERVICE_URL', 'http://127.0.0.1:8090/inference')
 
 # Define the allowed file extensions for uploads
 # ALLOWED_EXTENSIONS = {'mp3', 'wav', 'ogg', 'mp4', 'txt'}
@@ -28,6 +28,7 @@ ALLOWED_EXTENSIONS = {'mp3', 'txt'}
 
 # Initialize the database connection
 conn = init_db()
+init_demo_course()
 
 @app.route('/titles/create', methods=['POST'])
 def create_titles():
@@ -78,11 +79,18 @@ def transcribe(file_path):
     else:
         return None
 
-def process_request(request_uuid, file_path, title, description, license):
+def process_request(request_uuid, course_id, file_path, title, description, license):
     update_request_state(conn, request_uuid, LectureState.INIT)
 
     # Use request_id as lecture_id
     lecture_id = request_uuid
+
+    # create the lecture
+    result = insert_lecture(lecture_id, course_id, title, license)
+    if not result:
+        update_request_state(conn, request_uuid, LectureState.FAILED_TO_CREATE_LECTURE)
+        return
+
     if is_text_file(file_path):
         lecture_text = file_path
     else:
@@ -108,13 +116,6 @@ def process_request(request_uuid, file_path, title, description, license):
     result = generate_topic_titles(lecture_id)
     if not result:
         update_request_state(conn, request_uuid, LectureState.GENERATE_TOPIC_TITLES_FAILED)
-        return
-
-    # Now create the lecture after success state
-    course_id = 1  # Placeholder for course_id, which should be retrieved or passed in the request
-    result = insert_lecture(lecture_id, course_id, title, license)
-    if not result:
-        update_request_state(conn, request_uuid, LectureState.FAILED_TO_CREATE_LECTURE)
         return
 
     update_request_state(conn, request_uuid, LectureState.SUCCESS)
@@ -144,13 +145,15 @@ def create_lecture_endpoint():
         description = data.get('description')
         license = data.get('license')
 
+        course_id = data.get('course_id', str(uuid.UUID(int=0)))
+        
         if not all([title, description, license]):
             return jsonify({'error': 'All fields are required'}), 400
 
         insert_request(conn, request_uuid)
 
         # Spawn a thread to process the request
-        thread = threading.Thread(target=process_request, args=(request_uuid, file_path, title, description, license))
+        thread = threading.Thread(target=process_request, args=(request_uuid, course_id, file_path, title, description, license))
         thread.start()
 
         return jsonify({'uuid': request_uuid}), 200

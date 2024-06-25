@@ -62,6 +62,38 @@ Answers:
 }
 """
 
+llm_response3 = """
+AI: Summary: The provided context discusses the concepts of leverage and margins in mortgage markets, focusing on how low down payments (3-10%) led to increasing housing prices due to the "leverage effect," which allows individuals to own an asset worth significantly more than their initial payment. The context also touches upon how margins for buying securities affected the prices of toxic mortgage securities, where higher margins led to lower prices and vice versa.
+
+Quiz:
+
+1. [Question 1 - Basic] What is the leverage effect in mortgage markets?
+   a) The decrease in housing prices due to high down payments.
+   b) The increase in housing prices due to low down payments.
+   c) The decrease in housing prices due to borrowing.
+   d) The increase in housing prices due to increased borrowing costs.
+
+2. [Question 2 - Intermediate] How did low down payment requirements affect housing prices?
+   a) They had no impact on housing prices.
+   b) They led to a significant increase in housing prices.
+   c) They caused a decrease in housing prices due to risk.
+   d) They had an indirect effect on housing prices through borrowing costs.
+
+3. [Question 3 - Advanced] How do margins for buying securities influence the prices of toxic mortgage securities?
+   a) Higher margins lead to an increase in securities prices, while lower margins decrease prices.
+   b) Higher margins cause a decrease in securities prices, while lower margins increase prices.
+   c) There is no correlation between margins and securities prices.
+   d) Margins have a minimal impact on securities prices.
+
+Answers:
+```
+{
+  "1": "b",
+  "2": "b",
+  "3": "b"
+}
+```
+"""
 class TestParseQuiz(unittest.TestCase):
     def setUp(self):
         pass
@@ -76,6 +108,12 @@ class TestParseQuiz(unittest.TestCase):
         expected_answers = {"1": "b", "2": "c", "3": "a"}
         self.assertEqual(result['answers'], expected_answers)
         self.assertTrue("How does motion impact the accuracy of clocks?" in result['questions'])
+
+    def test_parse_quiz3(self):
+        result = parse_quiz(llm_response2)
+        expected_answers = {"1": "b", "2": "b", "3": "b"}
+        self.assertEqual(result['answers'], expected_answers)
+        self.assertTrue("There is no correlation between margins and securities prices." in result['questions'])
 
 if __name__ == '__main__':
     unittest.main()

@@ -6,6 +6,7 @@ from langchain_nvidia_ai_endpoints import ChatNVIDIA
 from langchain_openai import OpenAI, OpenAIEmbeddings
 from langchain_openai import ChatOpenAI
 import os
+import uuid
 from agents.database import (
     insert_course,
     insert_lecture,
@@ -101,4 +102,10 @@ def generate_topic_titles(lecture_id):
       raise Exception(e)
       return False
 
-
+def init_demo_course():
+  DEMO_COURSE = "Demo Course"
+  DEMO_DESCRIPTION = "Demo"
+  DEMO_AUTHOR = "Various Authors"
+  course_id = str(uuid.UUID(int=0))
+  if not get_course_id(DEMO_COURSE):
+    insert_course(course_id, DEMO_COURSE, DEMO_DESCRIPTION, DEMO_AUTHOR)
